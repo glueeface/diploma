@@ -1,7 +1,7 @@
 % !TeX spellcheck = russian-aot-ieyo
 % Зачем: Определяет класс документа (То, как будет выглядеть документ)
 % Примечание: параметр draft помечает строки, вышедшие за границы страницы, прямоугольником, в финальной версии его нужно удалить.
-\documentclass[a4paper,14pt,russian,oneside,final]{extreport}
+\documentclass[a4paper,14pt,russian,oneside,final]{extreport} %
 
 % Зачем: Удобная верстка многострочных формул, масштабирующийся текст в формулах, формулы в рамках и др
 % tbtags для расположения номеров формул на нижней строке:
@@ -58,7 +58,7 @@
 % Зачем: Настраивает отступы от границ страницы.
 % Почему: Пункт 2.1.2 Требований по оформлению пояснительной записки.
 %% Специфические к используемому принтеру + ОС
-\usepackage[left=3cm,top=1.9cm,right=1.5cm,bottom=2.095cm]{geometry}
+\usepackage[left=3cm,top=2cm,right=1.5cm,bottom=2cm]{geometry}
 % \usepackage[left=3cm,top=1.9cm,right=1.5cm,bottom=2.795cm, showframe]{geometry}
 % Стандарт для магистерской
 % \usepackage[left=3cm,top=1.9cm,right=1.0cm,bottom=2.095cm]{geometry}
@@ -265,8 +265,8 @@
   \printdate{\myDay}{\myMonth}{\myYear}%
 }
 
-\def\BibUrlRus#1{Режим доступа~: \url{#1}}
-\def\BibDateRus#1{Дата доступа~: \parsedate{#1}}
+\def\BibUrlRus#1{Режим доступа: \url{#1}}
+\def\BibDateRus#1{Дата доступа: \parsedate{#1}}
 \def\BibTitleSuffixRus{ [Электронный ресурс]}
 % Используем русский текст в английских источниках
 \def\BibUrl#1{\BibUrlRus{#1}}
@@ -315,7 +315,7 @@
 
 % Зачем: Задание подписей, разделителя и нумерации частей рисунков
 % Почему: Пункт 2.5.5 Требований по оформлению пояснительной записки.
-\DeclareCaptionLabelFormat{stbfigure}{\\Рисунок \arabic{section}.\arabic{figure}}
+\DeclareCaptionLabelFormat{stbfigure}{\\\vspace{\baselineskip}Рисунок \arabic{section}.\arabic{figure}}
 \DeclareCaptionLabelFormat{stbsubfigure}{\\\asbuk{subfigure})}
 \DeclareCaptionLabelFormat{stbtable}{Таблица \arabic{section}.\arabic{table}}
 \DeclareCaptionLabelSeparator{stb}{~--~}
@@ -443,7 +443,7 @@
 
 \let\oldequation=\equation
 \let\endoldequation=\endequation
-\renewenvironment{equation}{\vspace{-0.3em}\begin{oldequation}}{\end{oldequation}\vspace{-0.9em}}
+\renewenvironment{equation}{\vspace{0em}\begin{oldequation}}{\end{oldequation}\vspace{0em}}
 
 % Зачем: Дополнительные возможности в форматировании таблиц
 \usepackage{makecell}
@@ -804,9 +804,9 @@
 
 % Зачем: Задает стиль библиографии
 % Почему: Пункт 2.8.6 Требований по оформлению пояснительной записки.
-\bibliographystyle{\rootPathPrefix styles/belarus-specific-utf8gost780u}
+ \bibliographystyle{\rootPathPrefix styles/belarus-specific-utf8gost780u}
 % Только для магистратуры
-% \bibliographystyleMy{\rootPathPrefix styles/belarus-specific-utf8gost780u}
+%\bibliographystyleMy{\rootPathPrefix styles/belarus-specific-utf8gost780u}
 
 % Зачем: возможность использования символов _ внутри \UScore{}
 \DeclareUrlCommand\UScore{\urlstyle{rm}}
@@ -833,6 +833,26 @@
   \thispagestyle{empty}%
 }
 
+%---------------------------------my configs-----------------------------------------
+
+% Зачем: добавление возможности создания нумерованного списка без точки (1 2 3 ...)
+% (Для использования в листе задания)
+\newenvironment{enumerate_numx}
+  {\begin{enumerate}[label=\arabic*, ref=\arabic*, align=left,
+    labelindent=\fivecharsapprox,
+    leftmargin=*, itemindent=*]}
+  {\end{enumerate}}
+
+
+\usepackage{amssymb}
+\newcommand\scalemath[2]{\scalebox{#1}{\mbox{\ensuremath{\displaystyle #2}}}}
+
 % Зачем: добавляем пользовательские константы конфигурации
 % Всегда располагаем в конце для использования всех плагинов
 \input{\rootPathPrefix cfg}
+
+
+
+
+
+
