@@ -10,215 +10,208 @@
 
 
 \subsection{Алгоритм обработки запроса}
-Как изображено на схеме данных \dataScheme\ и было сказано выше, разрабатываемая система условно делится на две части:
+Как изображено на схеме данных \dataScheme\ и было упомянуто ранее, разрабатываемая система условно делится на две части:
 основной микросервис, написанный с использованием Django и Django Rest Framework,
 и микросервис, написанный с использованием FastAPI, ответственный за парсинг и статистику.
 
-В результате разработки системы оказалось, что наибольший интерес представляют алгоритмы обработки запросов.
+В результате разработки системы оказалось, что наибольший интерес представляют алгоритмы обработки запросов на стороне основного микросервиса.
 
-%На блок-схеме алгоритма \blockScheme\ изображен алгоритм обработки входящих GOOSE-пакетов \lstinline{SHMEM_INPUTS_DATA} после считывания
-%информации из модуля конфигурации и получения пакета. Описанный алгоритм работает с принятым пакетом, который представлен
-%структурой типа \lstinline{GooseSubscriber}, определенной в библиотеке \libIec, и данными из модуля конфигурации, которые
-%хранятся в локальной структуре в списке. Перед тем, как данные попадут в память, им необходимо пройти проверки на соответствие
-%ожидаемому результату и обновление. В принятом GOOSE-пакете содержится новая информация, которая проходит необходимые циклы проверок
-%и записывается в память при отсутствии ошибок.
+На блок-схеме алгоритма \blockScheme\ изображен алгоритм обработки запроса после его преобразования WSGI-сервером.
+Описанный алгоритм работает с принятым пакетом, который представлен объектом класса~\lstinline{WSGIRequest}.
+Перед тем, как запрос будет направлен на один из эндпоинтов, ему необходимо пройти механизм аунтентификации, который описан в классе
+~\lstinline{JWTAuthenticationMiddleware} в файле middleware.py.
+В обработанном объекте класса~\lstinline{WSGIRequest} содержится информация,
+которая требуется при обработке запроса каждым из классов представления.
 
 \subsection{Алгоритм работы модуля аунтентификации}
 
+Распишем данный алгоритм по шагам:
+\begin{enumerate_step}
+    \item Начало алгоритма.
+    \item Загрузить переменные окружения при помощи вызова функции~\lstinline{load_dotenv}.
+    \item Создать локальную переменную~\lstinline{JWT_SECRET_KEY} для сохранения в ней значения переменной окружения~\lstinline{JWT_SECRET_KEY}.
+    \item Инициализируем глобальную переменную~\lstinline{JWT_SECRET_KEY} при помощи получения значения по ключу из словаря~\lstinline{os.environ}.
 
-%\cid-файл состоит из огромного количества строк с разными тегами для всевозможных модулей. Для модуля приема и обработки GOOSE-пакетов соответствует тег
-%inAddr. Он является своего рода ключом к необходимым данным для базовой настройки модуля. Из \cid-файла невозможно просто взять данные. Они
-%представлены в неподходящем формате. Для того, чтобы с ними можно было в дальнейшем работать, текущий алгоритм переписывает данные в локальные структуры.
-%Но информация может быть некорректная, неподходящий \cid-файл, поэтому нужно множество проверок для предотвращения аварийных ситуаций системы.
-%
-%Распишем данный алгоритм по шагам:
-%\begin{enumerate_step}
-%    \item Начало алгоритма.
-%    \item \label{i:algo1:initData} Создать локальные переменные \lstinline{source}, \lstinline{mac}, \lstinline{goId}, \lstinline{appId}, \lstinline{confRev}, \lstinline{vars} все типа
-%    \lstinline{const char} для хранения слов-ключей. В \lstinline{inAddr} все данные
-%    записываются в одну строку, для того, чтобы отличать полезные данные и с ними работать,
-%    необходимо их найти. Данные слова-ключи обеспечивают это.
-%
-%    \item Создать локальную переменную \lstinline{const_part_goId} типа \lstinline{const char} для дальнейшего формирования \lstinline{goCbRef}.
-%
-%    \item \label{i:algo1:wordsPointers} Создать локальные переменные \lstinline{idx_source}, \lstinline{idx_mac}, \lstinline{idx_goId}, \lstinline{idx_appId}, \lstinline{idx_confRev} и \lstinline{idx_vars} для отслеживания индексов полезных данных в строке \lstinline{inAddr}.
-%    \item \label{i:algo1:createBufs} Создать локальные буферы \lstinline{temp_buffer_goId}, \lstinline{temp_buff_goCbRef} и \lstinline{temp_buff} размером \lstinline{CFG_MAX_BUF_SIZE} для промежуточного хранения и формирования необходимых данных из строки \lstinline{inAddr}.
-%
-%    \item Выполнить проверку на пустоту строки \lstinline{inAddr}. Если строка пуста, перейти
-%    к шагу~\ref{i:algo1:invalidSid}.
-%    \item Выполнить проверку на корректность строки \lstinline{inAddr}, а именно проверить соответствие последнего символа <<;>>. Если ошибка соответствия, перейти
-%    к шагу~\ref{i:algo1:errorStringFormat}.
-%
-%    \item Выполнить поиск слова <<source>>, в
-%    строке \lstinline{inAddr}.
-%    \item Проверить результат поиска. Если слова \lstinline{source} нет в строке \lstinline{inAddr},
-%    перейти к шагу~\ref{i:algo1:notSource}.
-%    \item Выполнить поиск слова <<mac>>, в
-%    строке \lstinline{inAddr}.
-%    \item Проверить результат поиска. Если слова \lstinline{mac} нет в строке \lstinline{inAddr},
-%    перейти к шагу~\ref{i:algo1:notMac}.
-%    \item Выполнить поиск слова <<goId>>, в
-%    строке \lstinline{inAddr}.
-%    \item Проверить результат поиска. Если слова \lstinline{goId} нет в строке \lstinline{inAddr},
-%    перейти к шагу~\ref{i:algo1:notGoId}.
-%    \item Выполнить поиск слова <<appId>>, в
-%    строке \lstinline{inAddr}.
-%    \item Проверить результат поиска. Если слова \lstinline{appId} нет в строке \lstinline{inAddr},
-%    перейти к шагу~\ref{i:algo1:notAppId}.
-%    \item Выполнить поиск слова <<confRev>>, в
-%    строке \lstinline{inAddr}.
-%    \item Проверить результат поиска. Если слова \lstinline{confRev} нет в строке \lstinline{inAddr},
-%    перейти к шагу~\ref{i:algo1:notConfRev}.
-%    \item Выполнить поиск слова <<vars>> в
-%    строке \lstinline{inAddr}.
-%    \item Проверить результат поиска. Если слова <<vars>> нет в строке \lstinline{inAddr},
-%    перейти к шагу~\ref{i:algo1:notVars}.
-%
-%    \item Найти указатели на концы слов в строке \lstinline{inAddr} и записать их в переменные, определенные в шаге~\ref{i:algo1:wordsPointers}.
-%
-%    \item Выполнить проверку формата строки \lstinline{inAddr}. Если слово <<source>> не
-%    заканчивается символом <<;>> , то перейти к шагу~\ref{i:algo1:errorStringFormatSource}.
-%    \item Выполнить проверку формата строки \lstinline{inAddr}. Если слово <<mac>> не
-%    заканчивается символом <<;>> , то перейти к шагу~\ref{i:algo1:errorStringFormatMac}.
-%    \item Выполнить проверку формата строки \lstinline{inAddr}. Если слово <<goId>> не
-%    заканчивается символом <<;>> , то перейти к шагу~\ref{i:algo1:errorStringFormatGoId}.
-%    \item Выполнить проверку формата строки \lstinline{inAddr}. Если слово <<appId>> не
-%    заканчивается символом <<;>> , то перейти к шагу~\ref{i:algo1:errorStringFormatAppId}.
-%    \item Выполнить проверку формата строки \lstinline{inAddr}. Если слово <<confRev>> не
-%    заканчивается символом <<;>> , то перейти к шагу~\ref{i:algo1:errorStringFormatConfRev}.
-%    \item Выполнить проверку формата строки \lstinline{inAddr}. Если слово <<vars>> не
-%    заканчивается символом <<;>> , то перейти к шагу~\ref{i:algo1:errorStringFormatVars}.
-%
-%    % checking for the same goId
-%    \item Присвоить локальной переменной значение индекса начала слова <<goId>>.
-%    \item Выполнить проверку на содержание \lstinline{goId}. Если слово пустое, то перейти к шагу~\ref{i:algo1:goIdEmpty}.
-%    \item Переписать значение \lstinline{goId} в локальный буфер, который был создан в шаге~\ref{i:algo1:createBufs}
-%    \item Добавить в конец буфера из предыдущего шага символ <<\textbackslash 0>>.
-%
-%    % create goCbRef
-%    \item На основе полученного \lstinline{goId} и переменных модуля приема и обработки GOOSE-пакетов \lstinline{ied_name}, \lstinline{src_ld_inst} и \lstinline{src_cb_name} сформировать
-%    \lstinline{goCbRef}.
-%
-%    \item \label{i:algo1:formElem} Сформировать указатель на элемент типа \lstinline{gooseConfigInfo_t} и обнулить его.
-%    \item Произвести поиск сформированного \lstinline{goCbRef} в локальных списках модуля с помощью вызова подпрограммы. Если такой был найден, то перейти к шагу~\ref{i:algo1:else}.
-%
-%    \item \label{i:algo1:malloc} Выделить память под новый элемент локального списка и присвоить указателю на элемент структуры, созданному в шаге~\ref{i:algo1:formElem}.
-%    \item Выполнить проверку на выделение памяти. Если память не удалось выделить, перейти к шагу~\ref{i:algo1:noMalloc}.
-%    \item \label{i:algo1:else} Присвоить указатель на найденный элемент указателю на элемент структуры, созданному в шаге~\ref{i:algo1:formElem}.
-%
-%    % save source to a temporary buffer temp_buffer
-%    \item Присвоить локальной переменной значение индекса начала слова \lstinline{source}.
-%    \item Выполнить проверку на содержание \lstinline{source}. Если слово пустое, то перейти к шагу~\ref{i:algo1:sourceEmpty}.
-%    \item Переписать значение \lstinline{source} из строки \lstinline{inAddr} в локальный буфер, который был создан в шаге~\ref{i:algo1:createBufs}.
-%    \item Добавить в конец буфера из предыдущего шага символ <<\textbackslash 0>>.
-%    \item На основе полученного \lstinline{source} с помощью вызова подпрограммы сформировать идентификатор интерфейса.
-%    \item Выполнить проверку идентификатора интерфейса. Если он равен \lstinline{NET_ETH_UNKNOWN},
-%    перейти к шагу~\ref{i:algo1:ethUnknown}.
-%    \item Выполнить проверку, что присвоенный указатель в шаге~\ref{i:algo1:else} не нулевой. Если нулевой, то перейти к шагу~\ref{i:algo1:pointerNull}.
-%    \item Получить поле элемента локального списка структуры и сравнить его с полученным идентификатором интерфейса, если они не равны, то перейти к шагу~\ref{i:algo1:mismatchSourse}.
-%    \item \label{i:algo1:pointerNull} Записать полученный идентификатор интерфейса в элемент списка.
-%
-%    % save mac to a temporary buffer temp_buffer
-%    \item Присвоить локальной переменной значение индекса начала слова <<mac>>.
-%    \item Выполнить проверку на содержание \lstinline{mac}. Если слово пустое, то перейти к шагу~\ref{i:algo1:macEmpty}.
-%
-%    \item Если символы в поле \lstinline{mac} соответствуют формату MAC-адреса, то сохранить его в локальный буфер.
-%    \item Добавить в конец символ <<\textbackslash 0>>.
-%    \item Выполнить проверку полученного адреса на его размер. Если он не соответствует размеру \lstinline{CFG_MAC_ADDR_SIZE_IN_HEX_NUM}, то перейти к шагу~\ref{i:algo1:errorMacSize}.
-%    \item Выделить локальный массив размера \lstinline{MAC_ADDR_SIZE}.
-%    \item Конвертировать полученный MAC-адрес в подходящий формат из строки с помощью вызова подпрограммы.
-%    \item Проверить результат, полученный в предыдущем шаге. Если произошла ошибка преобразования, перейти к шагу~\ref{i:algo1:errorMacConvert}.
-%    \item Выполнить проверку, что указатель в шаге~\ref{i:algo1:else} не нулевой. Если нулевой, то перейти к шагу~\ref{i:algo1:pointerNull1}.
-%    \item Сравнить полученный MAC-адрес и поле элемента локального списка. Если значения не равны, то
-%    перейти к шагу~\ref{i:algo1:mismatchMac}.
-%    \item \label{i:algo1:pointerNull1} Переписать проверенный MAC-адрес в поле адреса назначения в элемент локального списка модуля приема и обработки GOOSE-пакета.
-%
-%    % save goId to a temporary buffer temp_buffer
-%    \item Переписать параметр \lstinline{goId} из входной строки в поле элемента локального списка.
-%
-%    % save confRev to a temporary buffer temp_buffer
-%    \item Присвоить локальной переменной значение индекса начала слова <<confRev>>.
-%    \item Выполнить проверку на содержание \lstinline{confRev}. Если слово пустое, то перейти к шагу~\ref{i:algo1:confRevEmpty}.
-%    \item Переписать в локальный буфер слово \lstinline{confRev}, если там соответствующие символы. Если попался хоть один символ, который не соответствует шаблону, то перейти к шагу~\ref{i:algo1:confRevError}.
-%    \item Добавить в конец строки из предыдущего шага символ <<\textbackslash 0>>.
-%    \item Выполнить преобразование слова \lstinline{confRev} из строкового представление в числовое.
-%    \item Сравнить результат преобразования со значением \lstinline{UINT_MAX}. Если \lstinline{confRev} больше \lstinline{UINT_MAX}, то перейти к шагу~\ref{i:algo1:confRevOverflow}.
-%    \item Выполнить проверку, что указатель в шаге~\ref{i:algo1:else} не нулевой. Если нулевой, то перейти к шагу~\ref{i:algo1:pointerNull2}.
-%    \item Сравнить полученный \lstinline{confRev} и поле элемента локального списка. Если значения не равны, то перейти к шагу~\ref{i:algo1:mismatchConfRev}.
-%    \item \label{i:algo1:pointerNull2} Переписать проверенный \lstinline{confRev} в поле элемента локального списка модуля приема и обработки GOOSE-пакета.
-%
-%    % save appId to a temporary buffer temp_buffer
-%    \item Присвоить локальной переменной значение индекса начала слова \lstinline{appId}.
-%    \item Выполнить проверку на содержание \lstinline{appId}. Если слово пустое, то перейти к шагу~\ref{i:algo1:appIdEmpty}.
-%    \item Переписать в локальный буфер слово \lstinline{appId}, если там соответствующие символы. Если попался хоть один символ, который не соответствует шаблону, то перейти к шагу~\ref{i:algo1:appIdError}.
-%    \item Добавить в конец строки из предыдущего шага символ <<\textbackslash 0>>.
-%    \item Выполнить преобразование слова \lstinline{appId} из строкового представление в числовое.
-%    \item Сравнить результат преобразования со значением \lstinline{CFG_MAX_APPID_VAL}. Если \lstinline{appId} больше \lstinline{CFG_MAX_APPID_VAL}, то перейти к шагу~\ref{i:algo1:memoryAllocated}.
-%    \item Выполнить проверку, что указатель в шаге~\ref{i:algo1:else} не нулевой. Если нулевой, то перейти к шагу~\ref{i:algo1:pointerNull3}.
-%    \item Сравнить полученный \lstinline{appId} и поле элемента локального списка. Если значения не равны, то перейти к шагу~\ref{i:algo1:mismatchAppId}.
-%    \item \label{i:algo1:pointerNull3} Переписать проверенный \lstinline{appId} в поле элемента локального списка модуля приема и обработки GOOSE-пакета.
-%    \item Вызвать подпрограмму, которая разложит vars в локальные структуры. Данный алгоритм будет отдельно рассмотрен в подразделе~\ref{ssec:algo:varsInAddr}.
-%    \item Проверить результат разложения. Если возникла ошибка, то перейти к шагу~\ref{i:algo1:errorVars}.
-%    \item Записать в элемент локального списка количество vars.
-%
-%    \item Выполнить проверку, что указатель в шаге~\ref{i:algo1:else} не нулевой. Если не нулевой, то перейти к шагу~\ref{i:algo1:endAlgorithm}.
-%    \item Вернуть указатель на заполненный элемент локального списка со всеми полезными данными и перейти к шагу~\ref{i:algo1:end}.
-%
-%    \item \label{i:algo1:invalidSid} Вывести сообщение \texttt{Некорректный \cid-файл} и перейти к шагу~\ref{i:algo1:endAlgorithm}.
-%    \item \label{i:algo1:errorStringFormat} Вывести сообщение \texttt{Ошибка в формате строки} и перейти к шагу~\ref{i:algo1:endAlgorithm}.
-%    \item \label{i:algo1:notSource} Вывести сообщение \texttt{Слова <<source>> нет в строке входных данных. Некорректный \cid-файл} и перейти к шагу~\ref{i:algo1:endAlgorithm}.
-%    \item \label{i:algo1:notMac} Вывести сообщение \texttt{Слова <<mac>> нет в строке входных данных. Некорректный \cid-файл} и перейти к шагу~\ref{i:algo1:endAlgorithm}.
-%    \item \label{i:algo1:notGoId} Вывести сообщение \texttt{Слова <<goId>> нет в строке входных данных. Некорректный \cid-файл} и перейти к шагу~\ref{i:algo1:endAlgorithm}.
-%    \item \label{i:algo1:notAppId} Вывести сообщение \texttt{Слова <<appId>> нет в строке входных данных. Некорректный \cid-файл} и перейти к шагу~\ref{i:algo1:endAlgorithm}.
-%    \item \label{i:algo1:notConfRev} Вывести сообщение \texttt{Слова <<confRev>> нет в строке входных данных. Некорректный \cid-файл} и перейти к шагу~\ref{i:algo1:endAlgorithm}.
-%    \item \label{i:algo1:notVars} Вывести сообщение \texttt{Слова <<vars>> нет в строке входных данных. Некорректный \cid-файл} и перейти к шагу~\ref{i:algo1:endAlgorithm}.
-%
-%    \item \label{i:algo1:errorStringFormatSource} Вывести сообщение \texttt{Ошибка в формате строки. Нет символа <<;>> в конце слова <<source>>} и перейти к шагу~\ref{i:algo1:endAlgorithm}.
-%    \item \label{i:algo1:errorStringFormatMac} Вывести сообщение \texttt{Ошибка в формате строки. Нет символа
-%    <<;>> в конце слова <<mac>>} и перейти к шагу~\ref{i:algo1:endAlgorithm}.
-%    \item \label{i:algo1:errorStringFormatGoId} Вывести сообщение \texttt{Ошибка в формате строки. Нет символа
-%    <<;>> в конце слова <<goId>>} и перейти к шагу~\ref{i:algo1:endAlgorithm}.
-%    \item \label{i:algo1:errorStringFormatAppId} Вывести сообщение \texttt{Ошибка в формате строки. Нет символа <<;>> в конце слова <<appId>>} и перейти к шагу~\ref{i:algo1:endAlgorithm}.
-%    \item \label{i:algo1:errorStringFormatConfRev} Вывести сообщение \texttt{Ошибка в формате строки. Нет символа <<;>> в конце слова <<confRev>>} и перейти к шагу~\ref{i:algo1:endAlgorithm}.
-%
-%    \item \label{i:algo1:errorStringFormatVars} Вывести сообщение \texttt{Ошибка в формате строки. Нет символа
-%    <<;>> в конце слова <<vars>>} и перейти к шагу~\ref{i:algo1:endAlgorithm}.
-%
-%    \item \label{i:algo1:goIdEmpty} Вывести сообщение \texttt{Ошибка GoId. GoId пуст} и перейти к шагу~\ref{i:algo1:endAlgorithm}.
-%    \item \label{i:algo1:noMalloc}. Вывести сообщение \texttt{Ошибка выделения памяти} и перейти к шагу~\ref{i:algo1:endAlgorithm}.
-%    \item \label{i:algo1:sourceEmpty} Вывести сообщение \texttt{Ошибка source. Source пуст} и перейти к шагу~\ref{i:algo1:memoryAllocated}.
-%    \item \label{i:algo1:ethUnknown} Вывести сообщение \texttt{Ошибка source: неизвестный тип} и перейти к шагу~\ref{i:algo1:memoryAllocated}.
-%    \item \label{i:algo1:mismatchSourse} Вывести сообщение \texttt{Несоответствие значений source. Ошибка} и перейти к шагу~\ref{i:algo1:endAlgorithm}.
-%    \item \label{i:algo1:macEmpty} Вывести сообщение \texttt{Ошибка строки <<mac>>. MAC-адрес пуст} и перейти к шагу~\ref{i:algo1:memoryAllocated}.
-%    \item \label{i:algo1:errorMacSize} Вывести сообщение \texttt{Ошибка размер MAC-адреса или некорректные символы в адресе} и перейти к шагу~\ref{i:algo1:memoryAllocated}.
-%    \item \label{i:algo1:errorMacConvert} Вывести сообщение \texttt{Ошибка MAC-адреса или его размера} и перейти к шагу~\ref{i:algo1:memoryAllocated}.
-%    \item \label{i:algo1:mismatchMac} Вывести сообщение \texttt{Несоответствие адреса назначения. Ошибка} и перейти к шагу~\ref{i:algo1:endAlgorithm}.
-%    \item \label{i:algo1:confRevEmpty} Вывести сообщение \texttt{Ошибка confRev. ConfRev пуст} и перейти к шагу~\ref{i:algo1:memoryAllocated}.
-%    \item \label{i:algo1:confRevError} Вывести сообщение \texttt{Ошибка confRev} и перейти к шагу~\ref{i:algo1:memoryAllocated}.
-%    \item \label{i:algo1:confRevOverflow} Вывести сообщение \texttt{Переполнение confRev} и перейти к шагу~\ref{i:algo1:memoryAllocated}.
-%    \item \label{i:algo1:mismatchConfRev} Вывести сообщение \texttt{Несоответствие confRev. Ошибка} и перейти к шагу~\ref{i:algo1:endAlgorithm}.
-%    \item \label{i:algo1:appIdEmpty} Вывести сообщение \texttt{Ошибка appId. AppId пуст} и перейти к шагу~\ref{i:algo1:memoryAllocated}.
-%    \item \label{i:algo1:appIdError} Вывести сообщение \texttt{Ошибка appId} и перейти к шагу~\ref{i:algo1:memoryAllocated}.
-%    \item \label{i:algo1:mismatchAppId} Вывести сообщение \texttt{Несоответствие appId. Ошибка} и перейти к шагу~\ref{i:algo1:endAlgorithm}.
-%    \item \label{i:algo1:errorVars} Вывести сообщение \texttt{Ошибка разбора vars} и перейти к шагу~\ref{i:algo1:endAlgorithm}.
-%
-%    \item \label{i:algo1:memoryAllocated} Выполнить проверку, что память в шаге~\ref{i:algo1:malloc} была выделена. Если указатель пустой, перейти к шагу~\ref{i:algo1:endAlgorithm}.
-%    \item Выполнить очистку выделенных в шаге~\ref{i:algo1:malloc} ресурсов.
-%
-%    \item \label{i:algo1:endAlgorithm} Вернуть \lstinline{NULL}.
-%    \item \label{i:algo1:end} Конец алгоритма.
-%\end{enumerate_step}
-%
-%\subsection{Алгоритм разбора блока vars строки inAddr \cid-файла}
-%\label{ssec:algo:varsInAddr}
-%
-%В строке inAddr находится большое количество параметров, разбор и преобразование которых было рассмотрено в предыдущем алгоритме. Однако есть такие сложные параметры, которые требуют отдельного внимания. К примеру, параметр vars. В одной строке их может быть несколько. Так как алгоритм разбора vars занимает одно из центральных мест в модуле приема и обработки GOOSE-пакетов, его необходимо рассмотреть.
-%
-%Распишем данный алгоритм по шагам:
-%\begin{enumerate_step}
-%    \item Начало алгоритма.
-%    \item \label{i:algo2:createBuf} Выделить локальные буферы \lstinline{cdc_type}, \lstinline{prefix}, \lstinline{da_name}, \lstinline{res_buf}, \lstinline{nesting} типа \lstinline{char} размера \lstinline{CFG_MAX_BUF_SIZE}.
-%    \item \label{i:algo2:createVariables} Создать вспомогательные переменные для работы алгоритма.
+    \item Создать локальную переменную~\lstinline{jwt_token} для сохранения в ней значения заголовка~\lstinline{AUTHORIZATION}.
+    \item Инициализируем локальную переменную \lstinline{jwt_token} значением заголовка~\lstinline{AUTHORIZATION} путём вызова метода~\lstinline{request.headers.get}.
+    \item Проверить значение переменной~\lstinline{jwt_token}.
+    Если оно инициализированно значением~\lstinline{None}, то перейти к шагу~\ref{itm:dev:anonimous}.
+    \item Войти в блок~\lstinline{try}.
+    \item Создать локальную переменную~\lstinline{payload} для сохранения в ней декодированного значения переменной~\lstinline{jwt_token}.
+    \item Инициализируем локальную переменную~\lstinline{payload} декодированным значением переменной~\lstinline{jwt_token} путём вызова метода~\lstinline{jwt.decode}.
+    Если в процессе декодирования возникла ошибка~\lstinline{jwt.ExpiredSignatureError}, то перейти к шагу~\ref{itm:dev:exp-token-error}.
+    Если в процессе декодирования возникла одна из ошибкок~\lstinline{jwt.DecodeError} или~\lstinline{jwt.InvalidTokenError}, то перейти к шагу~\ref{itm:dev:inv-token-error}.
+    \item Установить значение~\lstinline{try}.
+
+    \item\label{itm:dev:exp-token-error} Завершение алгоритма путем возврата объекта класса~\lstinline{HttpResponse},
+    установив его значения~\lstinline{content} и~\lstinline{status} в значения~\lstinline{"Token has expired"} и~\lstinline{HTTP_401_UNAUTHORIZED} соответственно .
+%    Конец алгоритма
+
+    \item\label{itm:dev:inv-token-error} Установить значение переменной~\lstinline{request.user} в значение ~\lstinline{AnonymousUser} и завершение алгоритма.
+    \item\label{itm:dev:anonimous} Установить значение переменной~\lstinline{request.user} в значение~\lstinline{AnonymousUser}.
+    \item Конец алгоритма.
+\end{enumerate_step}
+
+\subsection{Алгоритм работы \moduleAutoTrading}
+\label{subsec:dev:moduleautotrading}
+
+Данный алгоритм разработан для того чтобы система могла производить операцию покупки или продажи, основываясь на
+элементе автоматического оффера, созданного пользователем и хранящимся в СУБД PostgreSQL.
+Так как данный алгоритм занимает одно из центральных мест в трейдинговой платформе, его необходимо рассмотреть подробно.
+Данный алгоритм состоит из четырех подпрограмм, три из которых используются в алгоритме произведения ручных офферов.
+
+Распишем данный алгоритм по шагам:
+\begin{enumerate_step}
+    \item Начало алгоритма.
+    \item Создать локальную переменную~\lstinline{orders} для сохранения в ней значений активных офферов, хранящихся в базе данных.
+    \item Выполнить инициализацию локальной переменной~\lstinline{orders} значениями активных офферов путём вызова метода~\lstinline{models.Order.objects.filter}.
+
+    \item Создать локальную переменную~\lstinline{currencies} для сохранения в ней каждой из валют, находящихся в переменной~\lstinline{orders}.
+    \item Выполнить итерацию по каждому элементу переменной~\lstinline{orders}, вызывая у каждого элемента метод~\lstinline{get_currency_name}.
+    \item\label{itm:prep-for-set} Выполнить инициализацию переменной~\lstinline{currencies} уникальными значениями каждой из валют,
+    полученных в~\ref{itm:prep-for-set} путем вызова метода~\lstinline{__init__} класса~\lstinline{set}.
+
+    \item\label{itm:dev:auto-tr:currencies-iter} Начало цикла по переменной~\lstinline{currencies} объекта класса~\lstinline{list}
+    с объектом итерации~\lstinline{currency_name} класса ~\lstinline{str}.
+    \item Создать локальную переменную~\lstinline{currency_orders} для сохранения в ней значений активных офферов с валютой,
+    хранящейся в переменной~\lstinline{currency_name}.
+    \item Выполнить инициализацию локальной переменной~\lstinline{currency_orders} значениями активных офферов с валютой,
+    хранящейся в переменной~\lstinline{currency_name}, путём вызова метода~\lstinline{models.Order.objects.filter} с параметром~\lstinline{currency__name}.
+    \item Если длина значения переменной~\lstinline{currency_orders} равна нулю -- перейти к шагу~\ref{itm:dev:auto-tr:currencies-iter}.
+
+    \item Войти в блок~\lstinline{try}.
+    \item Создать локальную переменную~\lstinline{currency_rate} для сохранения в ней текущего курса валюты,
+    определяемой переменной итерации~\lstinline{currency_name}, хранящихся в базе данных.
+
+    \item Выполнить инициализацию локальной переменной~\lstinline{currency_rate} текущего курса валюты,
+    определяемой переменной итерации~\lstinline{currency_name}, путём вызова метода~\lstinline{get_currency_rate} у записи из СУБД,
+    которая будет получена путём вызова метода~\lstinline{Currency.objects.get} и передачи в него значения переменной~\lstinline{currency_name}.
+    Если в процессе выполнения данного шага возникла ошибка -- перейти к шагу~\ref{itm:dev:auto-tr:currencies-iter}.
+    \item Выйти из блока~\lstinline{try}.
+
+    \item\label{itm:dev:auto-tr:order-iter} Начало цикла по переменной~\lstinline{currency_orders} объекта класса~\lstinline{list}
+    с переменной итерации~\lstinline{order} класса~\lstinline{Order}.
+    \item Выполнить вызов функции~\lstinline{create_transaction} с передачей значений переменных~\lstinline{order} и~\lstinline{currency_rate}.
+    Если возвращаемое значение функции~\lstinline{create_transaction} равно~\lstinline{False} -- перейти к шагу~\ref{itm:dev:auto-tr:order-iter}.
+    \item Инициализировать переменную~\lstinline{order} обновленной информацией из базы данных
+    путём вызова у объекта~\lstinline{order} метода~\lstinline{refresh_from_db}.
+
+    \item Создать локальную переменную~\lstinline{user} для сохранения в ней объекта класса~\lstinline{User}, которому принадлежит
+    выполненный оффер, хранящийся в переменной~\lstinline{order}.
+    \item Инициализировать переменную~\lstinline{order} объекта класса~\lstinline{User}, которому принадлежит выполненный оффер,
+    хранящийся в переменной~\lstinline{order}, путём получения у объекта~\lstinline{order} аргумента~\lstinline{user}.
+    \item Создать объект класса~\lstinline{str} с именем~\lstinline{subject} и инициализировать его значением~\lstinline{"Successful order"}.
+    \item Создать объект класса~\lstinline{str} с именем~\lstinline{message} и инициализировать его с использованием возвращаемого значения
+    метода~\lstinline{get_full_name}, аргумента~\lstinline{cash} объекта~\lstinline{user} и аргумента~\lstinline{id} объекта~\lstinline{order}.
+
+    \item Создать объект класса~\lstinline{list} с именем~\lstinline{recipient_list} и
+    инициализировать его аргументом~\lstinline{email} объекта~\lstinline{user}.
+    \item Выполнить вызов функции~\lstinline{send_smtp_email} с передачей значений
+    переменных~\lstinline{subject},~\lstinline{message} и~\lstinline{recipient_list}.
+
+    \item Если переменная~\lstinline{currency_orders} еще имеет значения,
+    которые не участвовали при итерировании, перейти к шагу~\ref{itm:dev:auto-tr:order-iter}.
+    \item Конец цикла по переменной~\lstinline{currency_orders}.
+
+    \item Если переменная~\lstinline{currencies} еще имеет значения,
+    которые не участвовали при итерировании, перейти к шагу~\ref{itm:dev:auto-tr:currencies-iter}.
+    \item Конец цикла по переменной~\lstinline{currencies}.
+
+    \item Конец алгоритма.
+\end{enumerate_step}
+
+Так как данный алгоритм использует внутри себя 4 подпрограммы, то слудет описять и их алгоритмы работы.
+
+\subsubsection{Алгоритм работы подпрограммы \lstinline{create_transaction}}
+
+\begin{enumerate_step}
+    \item Начало алгоритма.
+
+%    \item Получить значения, переданные в функцию значения.
+    \item Создать локальные переменные~\lstinline{is_valid} и~\lstinline{action} классов ~\lstinline{bool} и ~\lstinline{int} соответственно.
+    \item Вызвать функцию~\lstinline{is_valid_transaction} передав ей параметрами объекты~\lstinline{order} и~\lstinline{rate}.
+    \item Выполнить инициализацию локальных переменных~\lstinline{is_valid} и~\lstinline{action}
+    путём присвоения им возвращаемых значений функции~\lstinline{is_valid_transaction}.
+    \item Если значение переменной~\lstinline{is_valid} отлично от значения~\lstinline{True}, вернуть значение~\lstinline{False} и
+    перейти к шагу~\ref{itm:dev:create_transaction:end}.
+
+    \item Создать локальную переменную~\lstinline{transaction} класса~\lstinline{Transaction} и инициализировать её используя переменную
+    ~\lstinline{rate} и аргументы~\lstinline{count},~\lstinline{user} и~\lstinline{currency} объекта~\lstinline{order}.
+    \item Сохранить объект~\lstinline{transaction} в СУБД postgreSQL, вызвав у него метод~\lstinline{save}.
+
+    \item Изменить статус объекта~\lstinline{order}, установив аргумент~\lstinline{is_active} в значение~\lstinline{False}.
+    \item Сохранить изменения объекта~\lstinline{order} в СУБД PostgreSQL, вызвав у объекта метод~\lstinline{save}.
+
+    \item Изменить баланс пользователя путем высчитывания нового баланса на основании объектов
+    ~\lstinline{rate},~\lstinline{rate} и аргумента~\lstinline{count} объекта~\lstinline{order} и его присвоения аргументу~\lstinline{order.user.cash}.
+    \item Сохранить изменения объект~\lstinline{order.user} в СУБД postgreSQL, вызвав у объекта метод~\lstinline{save}.
+    \item Вернуть значение~\lstinline{True}.
+
+    \item\label{itm:dev:create_transaction:end} Конец алгоритма.
+\end{enumerate_step}
+
+\subsubsection{Алгоритм работы подпрограммы \lstinline{is_valid_transaction}}
+
+\begin{enumerate_step}
+    \item Начало алгоритма.
+
+    \item Сравнить значение аргумента~\lstinline{action} объекта~\lstinline{order} со значением~\lstinline{"BUY"}.
+    Если значения не совпадают, то перейти к шагу~\ref{itm:dev:is_valid_transaction:elif}.
+    \item Удостовериться в том, что у пользователя достаточно средств на балансе, чтобы произвести покупку и
+    текущий курс валюты для покупки ниже или равен установленному пользователем курсу в оффере.
+    Если оба условия выполняются, вернуть объекты классов~\lstinline{bool} и~\lstinline{int} со значениями~\lstinline{True} и~\lstinline{-1} соответственно.
+    Перейти к шагу~\ref{itm:dev:is_valid_transaction:end}.
+
+    \item\label{itm:dev:is_valid_transaction:elif}
+    Сравнить значение аргумента~\lstinline{action} объекта~\lstinline{order} со значением~\lstinline{"SELL"}.
+    Если значения не совпадают, перейти к шагу~\ref{itm:dev:is_valid_transaction:end-with-error}.
+
+    \item Создать локальную переменную~\lstinline{bag} класса~\lstinline{dict}.
+    \item Вызвать функцию~\lstinline{get_bag} передав ей параметрами объекты класса~\lstinline{Transaction},
+    связанные с аргументом~\lstinline{user} объекта~\lstinline{order}.
+    \item Выполнить инициализацию локальной переменной~\lstinline{bag}
+    путём присвоения ей возвращаемого значения функции~\lstinline{get_bag}.
+
+    \item Войти в блок~\lstinline{try}.
+    \item Удостовериться в том, что у пользователя достаточно средств на балансе, чтобы произвести продажу и
+    текущий курс валюты для продажи больше или равен установленному пользователем курсу в оффере.
+    Если значения не совпадают, перейти к шагу~\ref{itm:dev:is_valid_transaction:end-with-error}.
+    \item Вернуть объекты классов~\lstinline{bool} и~\lstinline{int} со значениями~\lstinline{True} и~\lstinline{1} соответственно.
+    \item Перейти к шагу~\ref{itm:dev:is_valid_transaction:end}.
+
+    \item\label{itm:dev:is_valid_transaction:end-with-error}
+    Вернуть объекты классов~\lstinline{bool} и~\lstinline{int} со значениями~\lstinline{False} и~\lstinline{0} соответственно.
+    \item\label{itm:dev:is_valid_transaction:end} Конец алгоритма.
+\end{enumerate_step}
+
+\subsubsection{Алгоритм работы подпрограммы \lstinline{get_bag}}
+
+\begin{enumerate_step}
+    \item Начало алгоритма.
+
+    \item Создать локальную переменную~\lstinline{currencies} для сохранения в ней каждой из валют, находящихся в переменной~\lstinline{queryset}.
+    \item\label{itm:dev:get_bag:prep-for-set} Выполнить итерацию по каждому элементу переменной~\lstinline{queryset},
+    вызывая у каждого элемента метод~\lstinline{get_currency_name}.
+    \item Выполнить инициализацию переменной~\lstinline{currencies} уникальными значениями каждой из валют,
+    полученных в шаге~\ref{itm:prep-for-set} путем вызова метода~\lstinline{__init__} класса~\lstinline{set}.
+
+    \item Создать локальную переменную~\lstinline{bag} класса~\lstinline{dict}.
+
+    \item\label{itm:dev:get_bag:currencies-iter}
+    Начало цикла по переменной~\lstinline{currencies} объекта класса~\lstinline{list}
+    с объектом итерации~\lstinline{currency_name} класса~\lstinline{str}.
+    \item Добавить элемент в объект~\lstinline{bag} с ключем~\lstinline{currency_name}.
+    Значение инициализировать путем вызова агрегирующей функции, которая будет выполнена на стороне базы данных.
+
+    \item Если переменная~\lstinline{currencies} еще имеет значения,
+    которые не участвовали при итерировании, перейти к шагу~\ref{itm:dev:get_bag:currencies-iter}.
+    \item Конец цикла по переменной~\lstinline{currencies}.
+
+    \item Вернуть значение локальной переменной~\lstinline{bag} класса~\lstinline{dict}.
+
+    \item Конец алгоритма.
+\end{enumerate_step}
+
 %    \item Проверить, что строка для разбора начинается с символа <<\{>>. При ошибке
 %    перейти к шагу~\ref{i:algo2:nestingError}.
 %    \item \label{i:algo2:for} Получить элемент строки.
